@@ -1,0 +1,811 @@
+UPDATE AND BUG FIXES
+
+1. CRITICAL INSTRUCTION: UPDATE THE EXISTING PROJECT ONLY
+
+I am uploading my existing Labour Attendance & Weekly Payment ERP project ZIP and an Excel file named "for software.xlsx".
+
+The existing application already contains working features. Do not rebuild it from scratch, replace the UI unnecessarily, remove existing features, or create a disconnected demo. Inspect the entire codebase and database first, understand the current architecture, and apply the changes below to the existing project.
+
+Before modifying anything:
+
+1. Inspect "package.json", the actual database connection, schema, migrations, authentication, API routes, calculations, attendance components, dashboard, reports, tests, and existing data.
+2. Identify the root cause of the intermittent attendance-saving problem.
+3. Determine which database is actually used at runtime. The supplied project contains SQLite using "better-sqlite3", an Express backend, and a PostgreSQL/Supabase migration file. Do not assume the PostgreSQL migration is active.
+4. Back up existing data and create reversible database migrations.
+5. Preserve existing working attendance, rates, overtime, charges, deductions, weekly reports, monthly reports, exports, and team merge features.
+6. Implement the new features within the existing architecture unless a change is demonstrably necessary. If a database migration is required, plan and verify data migration before switching.
+7. Do not delete existing records, reset the database, or seed duplicate users or teams.
+
+Work on the actual application code, not just a plan or mockup. After implementing, run the build, lint/type checks, tests, and appropriate end-to-end tests. Fix the failures before declaring completion.
+
+2. FIX THE ATTENDANCE SAVING BUG FIRST
+
+Current problem
+
+The first attendance entry often saves successfully. When adding another entry or updating an existing entry, the interface sometimes remains stuck on “Saving…” and never completes.
+
+Find and fix the actual cause. Investigate:
+
+- Unresolved promises and API requests that never complete.
+- Missing "try/catch/finally" handling.
+- Loading states that are not reset after errors.
+- Duplicate submissions and multiple simultaneous requests.
+- API endpoints that fail to return a response.
+- Database locking, transaction failures, foreign-key errors, and duplicate identifiers.
+- Frontend/backend response format mismatches.
+- Invalid date values or missing required fields.
+- Attendance entries whose lines fail to save.
+- React state updates, stale form state, and modal close/reset logic.
+
+Requirements:
+
+- Every save request must reach a definite success or failure state.
+- Use "finally" to release the saving state regardless of success or failure.
+- Disable the submit button while saving and prevent duplicate submissions.
+- Add a reasonable request timeout and actionable error messages.
+- If a save fails, retain the user's entered data so they can retry.
+- Save the attendance header and all category lines atomically in a database transaction. If any required part fails, roll back the entire operation.
+- On success, show a confirmation, refresh the relevant report, and close or reset the form correctly.
+- Use a unique request/idempotency mechanism where appropriate to prevent accidental duplicate entries.
+- Do not display success before the backend confirms the transaction committed.
+- Add diagnostic server logs without exposing passwords, tokens, or sensitive information.
+- Test at least 10 consecutive attendance creations, edits, failed requests, and retries without restarting the application.
+
+Default attendance date
+
+Whenever the user clicks “Add Attendance” from the dashboard, daily attendance page, or another shortcut, default the date to the current date in "Asia/Kolkata".
+
+- Display the date as "DD/MM/YYYY".
+- Calculate the Saturday–Friday reporting week from the selected date.
+- If the user changes the date, update the week assignment accordingly.
+- Do not silently replace a previously selected date when editing an existing record.
+- Use a single consistent date utility to avoid timezone and week-boundary bugs.
+
+3. DASHBOARD: ANALYTICS AND NAVIGATION, NOT A DATA-ENTRY PAGE
+
+Keep the dashboard focused on useful analytics and summaries. Detailed data entry, editing, and management must happen on the appropriate dedicated pages.
+
+Dashboard layout
+
+Show relevant summary cards and charts:
+
+- Current reporting week: Saturday–Friday.
+- Today's attendance and submitted attendance awaiting approval.
+- Current week's approved labour payment total.
+- Current week's pending payment amount.
+- Current week's paid amount.
+- Monthly payment analytics.
+- Day-by-day payment summary for the selected week.
+- Recent approvals, rejections, and administrator modifications where permitted.
+
+Provide action shortcuts such as:
+
+- Add Attendance → opens the Daily Attendance page with today's date selected.
+- Review Attendance → opens the assigned approval queue for authorized admins.
+- View Daily Report → opens the relevant daily report.
+- View Weekly Report → opens the relevant weekly report.
+- View Pending Payments → opens the payment-status page.
+- View Attachments → opens the organized attachments page.
+
+Do not place complex forms inside dashboard cards. Dashboard actions must navigate to the appropriate page and preserve the selected date, week, staff member, or report filter.
+
+Staff dashboard
+
+A staff member must see only their own permitted data:
+
+- Their daily attendance summary.
+- Their weekly attendance and payment report.
+- Their monthly analytics.
+- Their submission and approval statuses.
+- Their weekly team-wise payment statuses.
+- Notifications about approvals, rejections, or administrator changes.
+
+Staff must not see another staff member's attendance, templates, rates, attachments, or reports.
+
+Master admin dashboard
+
+The master admin dashboard must show consolidated company analytics:
+
+- Overall approved weekly payment.
+- Day-by-day totals for the selected week.
+- Staff-wise daily totals.
+- Staff-wise weekly totals.
+- Current-week pending and paid amounts.
+- Monthly payment totals.
+- Historical outstanding payments.
+
+When the master admin clicks a daily total, open that day's staff-wise summary. Clicking a staff member opens that person's full report in an explicitly identified Admin View.
+
+The admin view must show the relevant records, calculations, approval history, attachments, payment status, and authorized editing actions.
+
+When a staff member's weekly report is opened from the weekly summary, show that particular staff member's weekly report, not an unrelated consolidated report.
+
+4. STRICT ROLE-BASED ACCESS CONTROL
+
+Implement three roles:
+
+1. Master Admin
+2. Secondary Admin / Manager
+3. Staff
+
+Enforce permissions in the backend and database layer, not merely by hiding buttons in React.
+
+Master Admin
+
+The initial master admin is the highest-privilege account.
+
+Only the master admin can:
+
+- Create, edit, deactivate, and manage secondary admins.
+- Create, edit, deactivate, and manage staff accounts.
+- Assign staff to secondary admins.
+- Configure which staff and financial modules each secondary admin may access.
+- View and edit all staff attendance, reports, rates, templates, charges, adjustments, and payment statuses.
+- Approve or reject attendance when authorized as the master admin.
+- View all administrator-managed financial ledgers.
+- View all secondary-admin payment records and their associated staff data.
+- Access the complete audit history.
+- Manage global settings and role permissions.
+
+The master admin must not accidentally lose master privileges through an ordinary role edit. Master-admin reassignment, if supported, must require an explicit protected operation.
+
+Secondary Admin / Manager
+
+A secondary admin must have restricted, configurable access.
+
+The master admin must be able to assign:
+
+- Which staff members this admin manages.
+- Which staff reports this admin can view.
+- Which staff attendance this admin can approve or reject.
+- Which staff records this admin can edit.
+- Which additional financial modules this admin can access.
+- Whether this admin may add, edit, or only view financial entries in assigned modules.
+
+Secondary admins must not automatically see every staff member or every financial ledger.
+
+They must not create additional admins or change their own permissions.
+
+Every request must verify the secondary admin's actual assigned scope on the server.
+
+Staff
+
+Staff can:
+
+- Create and manage their own attendance submissions.
+- Create and manage their own permitted templates and categories.
+- View their own daily, weekly, and monthly reports.
+- Add permitted charges, notes, and attachments.
+- View their own approval history and notifications.
+- View their own team-wise weekly payment status.
+
+Staff cannot:
+
+- Read another staff member's private records.
+- View the administrator's petty-cash ledger or other restricted financial modules.
+- Approve their own attendance.
+- Edit an already submitted record directly when approval is required.
+- Change roles, permissions, approval decisions, or audit history.
+
+5. COMPLETE STAFF DATA ISOLATION
+
+Each staff account must have its own private operational workspace.
+
+A staff-created team, category, attendance template, rate template, draft, report attachment, or custom configuration must be visible only to that staff member unless explicitly shared or assigned by an authorized administrator.
+
+Use ownership fields such as "owner_user_id" or an equivalent secure ownership model wherever appropriate.
+
+Requirements:
+
+- Every read, create, update, delete, export, and attachment-download operation must enforce ownership and role scope.
+- Do not trust a "user_id", staff ID, or owner ID supplied by the browser without validating it on the server.
+- Editing a URL or API request must not allow one staff member to access another person's data.
+- Shared master configuration, if needed, must be distinguished from staff-owned templates.
+- Admin-created shared categories or templates may be explicitly published to selected staff; otherwise, staff-created resources remain private.
+- Admins can access a staff workspace only within their assigned permissions.
+- The master admin can access all staff workspaces.
+
+Add automated cross-account security tests using at least two staff users and two secondary admins with different assigned scopes.
+
+6. APPROVAL WORKFLOW FOR ATTENDANCE AND EDITS
+
+All newly submitted attendance must go into a pending-approval state.
+
+Submission lifecycle
+
+Use explicit states, for example:
+
+- "draft"
+- "pending_approval"
+- "approved"
+- "rejected"
+- "change_pending_approval"
+
+The exact implementation may differ, but state transitions must be enforced consistently.
+
+Creating attendance
+
+1. Staff enters attendance and saves the draft/submission.
+2. The record becomes pending approval.
+3. Notify the assigned secondary admin or another authorized approver.
+4. The submitted record must not be included in the approved weekly payable total until approved.
+5. The approver reviews the attendance details, rates, time calculations, charges, notes, and attachments.
+6. The approver can approve or reject it.
+7. A rejection must require a reason and notify the staff member.
+8. An approval must record the approver, timestamp, and decision.
+
+Editing an approved attendance record
+
+An edit to approved attendance must not overwrite the approved version immediately.
+
+Instead:
+
+1. Preserve the currently approved version.
+2. Create a pending change or proposed revision.
+3. Require a mandatory change description.
+4. Notify the assigned approver.
+5. Keep the old approved version in the weekly payable calculations while the revision is pending.
+6. Apply the new version only after approval.
+7. Record the old values, new values, reason, editor, reviewer, and timestamps.
+
+If a change is rejected, preserve the last approved version and record the rejection.
+
+Prevent a user from approving their own submission or proposed changes unless the master admin has explicitly configured and authorized an exceptional workflow.
+
+Approval queue
+
+Provide an admin page showing:
+
+- Pending submissions.
+- Pending changes to approved attendance.
+- Staff name.
+- Date and reporting week.
+- Team and project location.
+- Labour counts and rates.
+- Overtime and additional charges.
+- Notes and attachments.
+- Submission time.
+- Previous and proposed values for edits.
+
+Allow authorized admins to approve or reject, with a mandatory reason for rejection and mandatory description for any administrator-originated alteration.
+
+7. STAFF AND ADMIN ACCOUNT MANAGEMENT
+
+Improve the existing Staff Management page.
+
+Each account should show:
+
+- Full name.
+- Email.
+- Role.
+- Account status.
+- Staff type or designation.
+- Assigned project/location.
+- Assigned secondary admin.
+- Account creation date.
+- Last relevant activity, where available.
+
+Provide authorized account management actions:
+
+- Create account.
+- Edit name and email.
+- Edit designation, staff type, location, and assignment.
+- Activate or deactivate account.
+- Change role where permitted.
+- Reset password securely.
+- View assigned permissions.
+- View that person's reports.
+- View account activity.
+
+Password security
+
+Never display or retrieve a user's existing password in plaintext.
+
+Provide a secure password-reset/change operation instead. Use a secure one-time reset flow or authorized password update through the backend. Store password hashes only when using the existing local authentication system.
+
+If using Supabase Auth, use the appropriate secure Auth administrative flow from a trusted server environment. Never expose service-role credentials or privileged secrets to the frontend.
+
+Record account-management actions in the audit log.
+
+8. ADMIN ALTERATION FLAGS AND STAFF NOTIFICATIONS
+
+Whenever a secondary admin or master admin changes an existing staff report, attendance, rate, charge, deduction, payment status, or other consequential record:
+
+- Show an “Admin Modified” or “Modified After Submission” indicator on the affected report.
+- Record the identity and role of the editor.
+- Record the date and time.
+- Require a meaningful reason for report/attendance changes.
+- Preserve the previous and new values.
+- Notify the affected staff member.
+- Allow the staff member to view the modification reason and history for their own record.
+- Do not allow the staff member to modify or delete audit entries.
+
+If an administrator approves a staff-proposed change, distinguish the original staff editor from the approving administrator.
+
+Provide in-app notifications with unread counts and a notification history. Notifications must be persisted in the database, not only stored in temporary frontend state.
+
+9. DAILY ATTENDANCE, TEAM DETAILS, CATEGORIES AND LOCATIONS
+
+Preserve the existing count-based attendance model.
+
+Each staff member's permitted attendance entry must support:
+
+- Attendance date.
+- Team name.
+- Work category.
+- Site/project location.
+- Labour categories.
+- Worker counts.
+- Rates and rate types.
+- Start/end times where relevant.
+- Overtime.
+- Additional charges.
+- Remarks and notes.
+- Attachments.
+- Submission and approval status.
+- Audit history.
+
+Support multiple entries for the same team and day when separate shifts or batches are required.
+
+Rates and category configurations may vary by week. Preserve rate snapshots on historical entries so changing a future rate does not rewrite previous reports.
+
+Every staff member must be able to create their own permitted categories and templates without exposing them to other staff.
+
+The master admin may publish shared templates or assign templates to selected staff.
+
+10. ATTACHMENTS AND DOCUMENT MANAGEMENT
+
+Add an attachment option to daily attendance entries and, where appropriate, weekly report notes and override descriptions.
+
+Each attachment must include:
+
+- File.
+- User-provided description.
+- Uploader.
+- Upload date/time.
+- Related staff member.
+- Related team.
+- Attendance date and/or reporting week.
+- Related attendance, charge, or adjustment record.
+- Approval status where relevant.
+
+Support common business file types such as PDF, JPG, PNG, and XLSX, subject to secure file validation and sensible file-size limits.
+
+Provide a dedicated Attachments / Documents page with search and filters for staff, team, date, week, file type, uploader, and linked record.
+
+The user must be able to open an attachment from its related attendance/report and from the attachment library.
+
+Store files in persistent storage, not in temporary browser memory. Use private storage with authorization checks and expiring signed URLs or an equivalent secure download mechanism.
+
+Never expose another staff member's attachment by guessing its URL or storage path. Scan or validate uploads where supported, prevent unsafe file types, and do not execute uploaded content.
+
+11. WEEKLY PAYMENTS AND PAYMENT STATUS
+
+Payment status must be tracked by staff and team for each Saturday–Friday reporting week.
+
+Available statuses:
+
+- "Pending"
+- "Paid"
+- "Partially Paid" if partial settlement is supported
+- "Not Paid" or "Overdue" where applicable
+
+Only authorized admins can change the payment status. Staff can view the status of their own team-wise weekly report.
+
+Mark as Paid
+
+Add a “Mark as Paid” action to the weekly report or weekly payment details—not to the daily attendance form.
+
+When marking a weekly payment as paid, capture:
+
+- Staff.
+- Team.
+- Reporting week.
+- Amount paid.
+- Payment date.
+- Payment method, if relevant.
+- Voucher/receipt reference.
+- Voucher/receipt attachment, if available.
+- Person marking the payment.
+- Notes.
+
+Prevent marking a payment as fully paid if the amount settled does not reconcile with the outstanding amount, unless the operation is explicitly recorded as a partial payment or an authorized adjustment.
+
+Do not delete the weekly report or attendance after payment.
+
+Payment calculation and dashboard behavior
+
+- Pending payable = approved amount due minus valid payments already made and other applicable settled adjustments.
+- Paid amounts must be recorded as payment transactions, not as destructive changes to attendance records.
+- When a week is marked paid, remove its settled amount from the current outstanding-payable total.
+- Show the paid amount separately in historical payment analytics.
+- Unpaid balances from earlier weeks must remain visible as outstanding; never discard them during a week change.
+- The new reporting week must automatically display the new week's approved attendance and current outstanding amount.
+- Do not mix a previous week's payments into the current week's attendance total.
+- Keep current-week amounts, historical unpaid balances, and historical paid amounts separately identifiable.
+
+Payment records must be auditable, and changes or reversals must be authorized and recorded.
+
+12. PAYMENT TRACKER AND WEEKLY/MONTHLY ANALYTICS
+
+Create a dedicated payment-status page.
+
+Provide tabs or filters for:
+
+- Current Week.
+- Previous Weeks.
+- Current Month.
+- Historical Payments.
+- Pending Payments.
+- Paid Payments.
+- Partially Paid Payments.
+- Overdue Payments.
+
+Show staff-wise and team-wise totals where the viewer's permissions allow it.
+
+For each payment record, display:
+
+- Staff and team.
+- Week start and end.
+- Approved gross amount.
+- Credits/additions.
+- Deductions and advances applied.
+- Net payable.
+- Amount paid.
+- Outstanding balance.
+- Payment status.
+- Voucher/receipt details.
+- Payment date.
+- Last editor and audit history, where authorized.
+
+Allow filtering by staff, team, date range, project, and status.
+
+The master admin can see the full company-wide view. Secondary admins can see only assigned staff and financial modules. Staff can see only their own permitted weekly team-wise payment status.
+
+13. MASTER-ADMIN ACCOUNTS LEDGER
+
+Add a restricted accounts-maintenance module for the master admin.
+
+This is separate from the labour attendance calculation and separate from the petty-cash ledger described in Section 14.
+
+The master admin needs a company-wide accounting view that consolidates the applicable financial records, including:
+
+- Weekly labour payable.
+- Payments made to teams.
+- Supplier/contractor bills.
+- Advances paid and advances applied.
+- Credits and additions.
+- Deductions.
+- Payment receipts and vouchers.
+- Outstanding balances.
+- Payment history and adjustments.
+
+Use a proper credit/debit ledger with dates, descriptions, references, and calculated running balances.
+
+The master admin can view and edit all applicable accounting records. Edits must be audited, and existing payment transactions must not be silently erased or overwritten.
+
+Do not count a supplier advance twice. Maintain a clear distinction between an advance paid, an advance applied against a bill, and a remaining outstanding balance.
+
+14. EXCEL-BASED PETTY CASH MODULE — "for software.xlsx"
+
+Inspect the uploaded workbook "for software.xlsx", including its worksheet layout, formulas, date grouping, descriptions, and balance calculations. Use it as the reference for the new petty-cash feature.
+
+The workbook contains a sheet titled “Petty Cash - Oct 2026” and uses a daily ledger structure with:
+
+- Date.
+- Transaction serial number.
+- Description.
+- Credit (Received).
+- Debit (Paid).
+- Online Transaction.
+- Day Balance.
+- Opening balance in account.
+- Opening balance in hand.
+- Cash in account.
+- Cash in hand.
+
+Implement a dedicated Petty Cash / Office Expenses module that follows the workbook's terminology and reporting style.
+
+Access restrictions
+
+- Master admin: full access.
+- Secondary admin: access only if the master admin explicitly assigns this financial module.
+- Staff: no access to this ledger by default.
+
+The master admin must be able to assign a secondary admin to manage this module and configure which staff-related financial details are visible to that admin. A secondary admin must not automatically receive access to all staff reports or all financial records merely because they have petty-cash access.
+
+Petty-cash transaction entry
+
+Support:
+
+- Transaction date.
+- Serial/reference number.
+- Description.
+- Credit/received amount.
+- Debit/paid amount.
+- Online transaction amount or channel.
+- Cash/bank account classification.
+- Related staff/team/project, optionally.
+- Voucher/receipt attachment.
+- Notes.
+- Entered by and edited by.
+- Audit history.
+
+Do not force a transaction to be both a credit and a debit. Validate entries according to the chosen transaction type and ledger rules.
+
+Opening and running balances
+
+Support opening balances for the account and cash in hand.
+
+Calculate and display the running balances according to a clearly defined, documented ledger rule. Distinguish account/bank movements, cash-in-hand movements, and total available funds so online transactions are not counted twice.
+
+Do not invent or silently change the original workbook's accounting rules. Inspect the formulas and reconcile the implementation against the workbook's actual balances before declaring it complete.
+
+Petty-cash reports
+
+Provide daily and monthly views, search, filters, and PDF/Excel export.
+
+Retain a history of edited transactions. Do not silently alter historical opening balances or delete posted transactions. Use authorized adjustments/reversals with audit trails where required.
+
+15. SECONDARY-ADMIN ASSIGNABLE FINANCIAL REPORTS
+
+The master admin must be able to create and assign additional financial modules or reports to selected secondary admins.
+
+For each secondary admin, provide a permission matrix allowing the master admin to choose:
+
+- Which staff members' data can be included.
+- Which financial modules are accessible.
+- Whether the admin can view, create, edit, approve, export, or manage payments in each assigned module.
+- Whether the admin can see individual staff details or only permitted aggregate totals.
+
+A secondary admin must see only the records and reports allowed by these assignments.
+
+The master admin must be able to view and edit all secondary-admin financial records, including records created by different secondary admins.
+
+Staff must not see the office petty-cash ledger or other restricted accounts-maintenance reports. Staff should see only their own relevant attendance and team-wise weekly payment reports.
+
+16. WEEKLY REPORTING AND CALCULATION INTEGRITY
+
+Preserve the Saturday–Friday week.
+
+Provide:
+
+- Staff daily report.
+- Staff weekly report.
+- Staff monthly report.
+- Team-wise weekly payment report.
+- Secondary-admin assigned-staff reports.
+- Master-admin consolidated weekly report.
+- Master-admin consolidated monthly report.
+- Restricted accounting and petty-cash reports.
+
+The staff weekly report must show the relevant team's labour amounts, overtime, additional charges, adjustments, and final payable amount.
+
+The master admin's weekly view must additionally show company-wide totals and staff-wise breakdowns.
+
+Use the existing calculation logic as the baseline, but verify it against the supplied reference reports and current tests.
+
+Do not silently change or reconcile conflicting source figures. Flag discrepancies for review.
+
+Ensure:
+
+- Attendance in pending or rejected states does not enter approved payable totals.
+- Approved changes recalculate totals correctly.
+- Payment status does not delete or modify the underlying attendance.
+- Advances are not double-deducted.
+- Historical rate snapshots remain unchanged.
+- Merged team reports do not double-count source records.
+- All calculations use safe monetary arithmetic and consistent rounding.
+- Exported PDF/Excel totals reconcile with the displayed report.
+
+17. AUDIT HISTORY
+
+Create a comprehensive, append-only audit trail for consequential actions.
+
+Capture:
+
+- Actor ID, name, and role.
+- Action performed.
+- Entity and record ID.
+- Date/time.
+- Previous values.
+- New values.
+- Mandatory reason where required.
+- Related staff, team, week, and approval/payment transaction.
+
+Audit:
+
+- Attendance creation and editing.
+- Approval and rejection.
+- Rate or category changes.
+- Additional charges and deductions.
+- Payment status changes.
+- Voucher additions and changes.
+- Account and permission changes.
+- Financial ledger edits.
+- Secondary-admin assignments.
+- Team merges.
+- Attachment additions and removals.
+
+Staff must not be able to modify audit history. Secondary admins must see only audit information permitted by their scope. The master admin can review the complete audit history.
+
+18. DATABASE, API AND SECURITY REQUIREMENTS
+
+Preserve the current database architecture unless a documented migration is necessary.
+
+If the runtime remains SQLite:
+
+- Use transactions for multi-record writes.
+- Configure foreign keys correctly.
+- Handle database locking and concurrent requests.
+- Add appropriate indexes and uniqueness constraints.
+- Avoid unsafe shared database writes and non-atomic financial calculations.
+
+If migrating to PostgreSQL/Supabase:
+
+- Create and verify real schema migrations.
+- Preserve existing records and identifiers where feasible.
+- Implement correct relationships, constraints, indexes, and database-level authorization.
+- Enable and thoroughly test Row-Level Security.
+- Keep privileged credentials server-side.
+- Provide a migration and rollback strategy.
+- Verify that every existing feature continues working against the new database.
+
+Regardless of database choice:
+
+- Validate all inputs on the server.
+- Enforce role and ownership checks on every protected endpoint.
+- Use parameterized queries.
+- Do not trust frontend-only permissions.
+- Do not store passwords in plaintext.
+- Do not use localStorage as the authoritative data store.
+- Persist records, approvals, notifications, payments, and attachments.
+- Use appropriate error responses without leaking secrets or internal stack traces.
+- Add database migrations that are safe to run without duplicating data.
+
+19. REQUIRED DATABASE CAPABILITIES
+
+Adapt the current schema instead of blindly creating duplicate tables. Add the equivalent of the following capabilities where missing:
+
+- User profiles and role assignments.
+- Staff-to-secondary-admin assignments.
+- Permission scopes for financial modules.
+- Staff-owned teams, categories, and templates.
+- Attendance submissions and version history.
+- Approval decisions and approval queue.
+- Attendance attachments and document metadata.
+- Persistent notifications.
+- Weekly payment settlements and voucher references.
+- Petty-cash accounts and transactions.
+- Credit/debit ledger entries and running-balance calculations.
+- Secondary-admin financial module assignments.
+- Audit events and actor metadata.
+
+Use proper foreign keys and indexes. Apply uniqueness constraints only where they match the actual business rules; multiple attendance batches for the same team and day must remain possible.
+
+20. REQUIRED UI PAGES
+
+Preserve the existing design and add or update the following pages:
+
+1. Dashboard.
+2. Daily Attendance.
+3. My Attendance / My Reports.
+4. Teams and Templates.
+5. Weekly Reports.
+6. Monthly Reports.
+7. Approval Queue.
+8. Payment Tracker.
+9. Attachments / Documents.
+10. Additional Charges.
+11. Advances and Deductions.
+12. Staff and Account Management.
+13. Secondary Admin Management and Permissions.
+14. Office Accounts Ledger.
+15. Petty Cash.
+16. Notifications.
+17. Audit History.
+18. Settings.
+
+Render navigation and actions based on the user's actual role and permissions. Do not merely hide a page link while leaving its API accessible.
+
+Ensure all pages work on Android mobile screens and desktop browsers. Use loading, empty, error, success, and confirmation states consistently.
+
+21. REQUIRED TESTS BEFORE COMPLETION
+
+Create and run automated tests for at least the following scenarios.
+
+Attendance reliability
+
+- Add the first attendance entry.
+- Add multiple consecutive entries.
+- Edit an existing entry.
+- Simulate a backend error and retry.
+- Verify the saving indicator always clears.
+- Verify failed transactions do not leave partial attendance lines.
+- Verify duplicate clicks do not create duplicate records.
+- Verify today's date is the default.
+- Verify Saturday–Friday week calculations at boundary dates.
+
+Data isolation
+
+- Staff A cannot view or edit Staff B's records.
+- Staff A cannot access Staff B's categories, templates, attachments, or exports.
+- A secondary admin can access only assigned staff.
+- A secondary admin cannot access an unassigned financial module.
+- The master admin can access all permitted records.
+- Direct API requests and altered IDs do not bypass authorization.
+
+Approval workflow
+
+- New attendance remains pending until approved.
+- Pending attendance is excluded from approved payment totals.
+- Rejected attendance remains auditable.
+- Approved attendance edits require a reason and approval.
+- The previous approved version remains effective while an edit is pending.
+- Approval and rejection notifications reach the correct staff member.
+- Administrator changes are flagged and attributed correctly.
+
+Payments and finance
+
+- Mark a weekly team payment as paid.
+- Verify the amount leaves the outstanding balance but remains in paid history.
+- Verify older unpaid amounts remain outstanding when a new week begins.
+- Verify partial payments and outstanding balances reconcile.
+- Verify advances are not double-deducted.
+- Verify payment reversals and adjustments are auditable.
+- Verify petty-cash daily and monthly balances against the supplied workbook.
+- Verify financial permissions for each role.
+
+Data integrity
+
+- Verify all existing records survive migrations.
+- Verify exports reconcile with screen totals.
+- Verify attachments cannot be accessed across unauthorized accounts.
+- Verify audit entries cannot be edited by staff.
+- Verify the build, lint/type checks, and existing tests pass.
+
+Add regression tests for every bug discovered during implementation.
+
+22. IMPLEMENTATION ORDER
+
+Implement in this order, while preserving the existing application:
+
+Phase 1: Diagnose and fix attendance saving; implement today's default date; verify reliable transactions.
+
+Phase 2: Add role/ownership isolation and master-admin, secondary-admin, and staff permissions.
+
+Phase 3: Implement attendance submission, approval, rejection, version history, and notifications.
+
+Phase 4: Update dashboards, staff-wise daily/weekly reports, payment status, and historical outstanding balances.
+
+Phase 5: Add attachments, account management, and admin-change flags.
+
+Phase 6: Add the restricted master-admin ledger and Excel-based petty-cash module.
+
+Phase 7: Add secondary-admin financial assignments and scoped reports.
+
+Phase 8: Run security tests, calculation reconciliation, regression tests, and mobile UI checks.
+
+Do not claim that a phase is complete merely because its UI has been created. The feature must work end to end with persistent data, backend authorization, correct calculations, and tests.
+
+23. FINAL ACCEPTANCE CRITERIA
+
+The project is complete only when:
+
+- Attendance can be saved and edited repeatedly without getting stuck on “Saving…”.
+- New attendance defaults to today's date.
+- Staff data and templates are isolated between accounts.
+- The master admin can view and manage all staff data.
+- Secondary admins can access only the staff and financial modules assigned to them.
+- Attendance and edits follow the required approval workflow.
+- Administrator modifications are flagged, attributed, audited, and communicated to affected staff.
+- Attachments are securely stored and organized.
+- Weekly payment settlement works without deleting attendance or losing historical balances.
+- Current-week, historical paid, and outstanding payments are reported separately.
+- The master-admin accounts ledger is separate from staff reports.
+- Petty-cash reports reconcile with the supplied Excel workbook.
+- Existing working features remain intact.
+- Database migrations preserve the existing data.
+- All required tests pass.
+
+Start by inspecting the existing ZIP and Excel workbook, then identify the exact saving bug and database architecture. Implement the changes incrementally in the current project. Do not replace the application with a new demo, do not fabricate successful test results, and do not declare completion until the acceptance criteria have been verified.

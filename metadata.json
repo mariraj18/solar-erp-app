@@ -1,0 +1,8 @@
+{
+  "name": "Labour ERP & Weekly Payment",
+  "description": "Production-grade Labour Attendance and Weekly Payment ERP system with Saturday-Friday week management, category calculations, overtime, advances, audit logs, and export reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

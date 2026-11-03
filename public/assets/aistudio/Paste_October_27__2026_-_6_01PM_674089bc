@@ -1,0 +1,913 @@
+PROJECT: COMPANY LABOUR ATTENDANCE & WEEKLY PAYMENT ERP
+
+1. ROLE AND OBJECTIVE
+
+Act as a senior full-stack engineer, database architect, financial calculation specialist, QA engineer, and enterprise UI/UX designer.
+
+Build a production-oriented, full-stack Labour Attendance and Weekly Payment ERP for my company. This system replaces manually prepared labour attendance tables, daily calculations, extra-charge records, weekly payment reports, and monthly summaries.
+
+Do not build only a landing page, static dashboard, clickable mockup, or frontend prototype. Build a functioning application with real authentication, persistent database storage, backend validation, calculation logic, reporting, and role-based authorization.
+
+Accuracy of financial calculations and preservation of historical records are more important than decorative UI.
+
+Work in phases, validate each phase, and fix errors before proceeding. Do not silently skip requirements, fabricate successful tests, or mark unfinished features as complete.
+
+2. TECHNOLOGY STACK
+
+Use the following stack unless an actual platform limitation requires a clearly explained alternative:
+
+- Frontend: React, TypeScript, Vite.
+- UI: Tailwind CSS and a consistent reusable component system.
+- Icons: Lucide React.
+- Backend and database: Supabase with PostgreSQL.
+- Authentication: Supabase Auth.
+- Authorization: PostgreSQL Row Level Security (RLS), database policies, and server-side validation.
+- Data access: Supabase client for authorized queries and database functions or Edge Functions for privileged operations where appropriate.
+- Forms and validation: React Hook Form and Zod.
+- Data tables: Responsive tables with pagination, sorting, search, and filters.
+- Charts: Recharts only where charts improve understanding.
+- Date and time: Use explicit date handling and the Asia/Kolkata time zone.
+- Testing: Vitest and React Testing Library, plus integration tests for important database and calculation flows.
+
+Use current, mutually compatible package versions.
+
+Keep business logic separate from UI components. Use TypeScript strict mode and reusable services, hooks, validation schemas, and calculation functions.
+
+Never expose Supabase service-role keys, database passwords, or other secrets in browser code. Do not use a service-role key in the client.
+
+If Supabase is not configured yet, explain exactly what needs to be connected. Do not pretend that data persistence, authentication, or RLS works before verifying it.
+
+3. PRODUCT AND USER ROLES
+
+There are exactly two application roles in version one.
+
+A. ADMIN
+
+There must be one designated initial administrator account. The admin has complete access to the company's ERP data and settings.
+
+Admin capabilities:
+
+- View, create, edit, deactivate, and manage staff accounts.
+- View all teams, attendance records, rates, expenses, deductions, and advances.
+- Create and modify reusable team templates and labour categories.
+- Edit any attendance entry.
+- Correct calculation inputs and overrides.
+- Create, edit, reverse, and merge records subject to audit controls.
+- View daily, weekly, monthly, team-wise, and consolidated reports.
+- Generate and export PDF and Excel reports.
+- Inspect audit logs and previous report versions.
+- Configure time rules, overtime, deductions, rounding, and payment settings.
+- Reopen previously finalized records when necessary.
+- View all historical records.
+
+Do not create a public administrator registration page. Establish the first administrator through a secure, documented bootstrap process or a controlled Supabase administrative setup.
+
+B. STAFF
+
+Staff are authenticated users created or invited by the administrator.
+
+Staff capabilities:
+
+- Create and reuse teams.
+- Create daily attendance entries for any number of labour categories.
+- Enter counts, start times, end times, and remarks.
+- Configure permitted team roles and weekly rates.
+- Add extra charges, overtime, advances, credits, and deductions.
+- Edit attendance and payment entries.
+- Merge attendance records or combine teams in reports.
+- View and export permitted daily, weekly, and monthly reports.
+- Correct their own entries and other entries within their granted company-wide operational access.
+
+For version one, staff can edit records without requiring routine admin approval. However, preserve a complete audit history. Do not silently overwrite historical financial values.
+
+The admin must always retain full control.
+
+C. LABOURERS
+
+Labourers are NOT application users.
+
+Do not create labourer login accounts, passwords, authentication records, or mandatory personal profiles.
+
+Attendance is count-based. Staff can enter 5 masons, 3 helpers, or any other quantity without recording each worker's name.
+
+Individual labour names must not be mandatory or part of the default workflow.
+
+4. APPLICATION LAYOUT
+
+Create a professional, minimal, modern ERP interface suitable for everyday use by company staff.
+
+Design requirements:
+
+- Responsive Android/mobile layout and desktop web layout.
+- Sidebar navigation on desktop and compact bottom navigation or a mobile menu on phones.
+- Light theme by default with accessible contrast.
+- Consistent typography, spacing, borders, form controls, tables, and buttons.
+- Functional loading states, empty states, success messages, validation messages, and error handling.
+- Searchable team lists and searchable reports.
+- Clear INR currency formatting, using ₹ and Indian number grouping.
+- All dates displayed consistently as DD/MM/YYYY.
+- All monetary amounts formatted to two decimal places where necessary.
+- Do not rely on color alone to communicate status.
+- No excessive gradients, decorative charts, fake statistics, or unnecessary animations.
+- Do not create a generic SaaS marketing website instead of the actual ERP.
+
+Main navigation:
+
+1. Dashboard
+2. Daily Attendance
+3. Teams
+4. Weekly Reports
+5. Monthly Reports
+6. Additional Charges
+7. Advances and Deductions
+8. Staff Management — admin only
+9. Audit History
+10. Settings
+
+5. SATURDAY–FRIDAY WEEK MANAGEMENT
+
+The official reporting week is Saturday through Friday.
+
+For every date, calculate the corresponding week using:
+
+- Start date: Saturday.
+- End date: the following Friday.
+- Time zone: Asia/Kolkata.
+
+Examples:
+
+- 26/09/2026–02/10/2026.
+- 17/10/2026–23/10/2026.
+- 24/10/2026–30/10/2026.
+
+Generate the active week automatically using the current date. Users must also be able to navigate to previous and future weeks.
+
+Do not use Monday–Sunday weeks.
+
+Every weekly dashboard must show seven date slots. A date with no entries must not automatically create payable labour or be interpreted as paid attendance.
+
+Support multiple attendance entries for the same team on the same date. Different shifts, different batches, or separate entries with different working times must be permitted.
+
+Prevent duplicate submissions caused by repeated taps or network retries, but never prohibit legitimate multiple entries on one date.
+
+6. TEAM MANAGEMENT
+
+A team is a reusable operational identity, not a single attendance record.
+
+Team fields:
+
+- Team ID.
+- Team name.
+- Work category.
+- Optional project or work location.
+- Active/inactive status.
+- Optional notes.
+- Default labour categories.
+- Default rates and rate calculation types.
+- Creation and modification metadata.
+
+Examples of team names and work categories include:
+
+- Centring Murugan.
+- Heeralal / Lumia Building.
+- VVD Ulaganathan Team.
+- Electrician Arun.
+- Ali Carpenter.
+- Vishnu Civil Labour.
+- Vishnu Painter.
+- Museum Cleaning.
+- Water Supply.
+- Transport / Bolero.
+- Breaker / Demolition.
+- Tile Work.
+- Plumber.
+- Wall Cutter.
+- Machine Rental.
+
+These are examples, not a fixed list. Staff must be able to create new teams and categories without a developer changing the code.
+
+Create a team
+
+Provide a simple workflow:
+
+1. Enter team name.
+2. Select or create a work category.
+3. Add one or more labour roles.
+4. Set the applicable rate and rate type for each role.
+5. Set optional time and deduction defaults.
+6. Save the team template.
+
+Reuse a team in a new week
+
+When adding an existing team to a new week, offer:
+
+- Reuse previous team settings.
+- Copy previous role and rate configuration.
+- Change rates for this week.
+- Add or remove roles for this week.
+- Modify any permitted configuration without changing previous weeks.
+
+Rates and role configurations must be snapshotted into the new week's records. Updating a team template must never retroactively change old calculations.
+
+Allow multiple instances of the same team template in a week only when they represent explicitly distinct assignments. Do not accidentally duplicate an assignment.
+
+7. DAILY ATTENDANCE ENTRY
+
+This is the core feature. Optimize it for fast, repeated data entry on Android phones.
+
+Provide two ways to enter attendance:
+
+A. Select a team and add a daily attendance entry.
+
+B. Open the weekly dashboard, select a date, and add one or more teams.
+
+Each attendance entry must support:
+
+- Date.
+- Team.
+- Optional project/location.
+- Start time.
+- End time.
+- Multiple labour categories.
+- Count for each category.
+- Rate for each category.
+- Rate type.
+- Automatically calculated amount.
+- Optional overtime.
+- Optional late-coming adjustment.
+- Remarks.
+- Creator and last editor.
+- Creation and modification timestamps.
+
+The in/out times apply to the attendance batch or shift. If different batches have different times, create separate attendance entries.
+
+Multiple labour categories
+
+Example:
+
+Date: 17/10/2026
+Team: Heeralal / Lumia Building
+
+| Category | Count | Rate | Amount |
+| Mason | 9 | ₹1,400/day | ₹12,600 |
+| Helper | 5 | ₹1,000/day | ₹5,000 |
+| Total | 14 | | ₹17,600 |
+
+These are example values. Do not hard-code them as universal rates.
+
+Allow a count of zero. Show zero amounts when the rate is valid, but distinguish zero attendance from missing or unconfirmed attendance.
+
+Fast entry workflow
+
+- Default the date to the selected date.
+- Pre-fill reusable team configuration.
+- Allow staff to enter counts and move between fields quickly.
+- Calculate amounts immediately in the interface.
+- Validate calculations on the server before saving.
+- Offer Save and Save & Add Another.
+- Warn before discarding unsaved changes.
+- Display the saved record and updated daily total.
+- Never clear an entry merely because a network request fails.
+
+8. RATE TYPES AND CALCULATION ENGINE
+
+Implement a centralized, tested calculation engine. Do not duplicate financial formulas across screens.
+
+Support the following calculation methods:
+
+1. Count × daily rate.
+2. Quantity × unit rate.
+3. Hours × hourly rate.
+4. Overtime hours × overtime rate.
+5. Fixed amount.
+6. Percentage adjustment.
+7. Manual amount with required description and reason.
+8. Configurable rate per labour category.
+
+Examples:
+
+- 5 painters × ₹950 = ₹4,750.
+- 2 transport trips × ₹500 = ₹1,000.
+- 3 overtime hours × ₹150 = ₹450.
+- Fixed machine rental = ₹1,000.
+
+Use decimal-safe arithmetic or integer paise storage for financial calculations. Never use binary floating-point arithmetic as the authoritative source for money.
+
+Store the input values, calculation type, applicable rate, calculation result, and any override information.
+
+All calculations must be reproducible from stored inputs.
+
+Automatic calculations and manual overrides
+
+The selected time-and-deduction mode is MIXED:
+
+- Calculate amounts automatically when a configured rule exists.
+- Allow staff to override permitted results.
+- Record the automatic calculated amount.
+- Record the final overridden amount.
+- Require a reason for a financial override.
+- Record who made the override and when.
+- Show the difference between the calculated and final amount.
+- Recalculate dependent totals after a change.
+- Never silently discard a staff override when unrelated data changes.
+
+If a required rule is not configured, do not invent one. Allow an explicit manual amount or show a configuration warning.
+
+9. IN-TIME, OUT-TIME, OVERTIME, AND LATE COMING
+
+Build configurable time rules at company and labour-category level.
+
+Support:
+
+- Standard working start time.
+- Standard working end time.
+- Optional grace period.
+- Optional unpaid break.
+- Overtime eligibility.
+- Overtime rate or multiplier.
+- Late-coming calculation method.
+- Deduction rate or fixed amount.
+- Minimum billable overtime.
+- Overtime rounding increments.
+- Time rounding rules.
+- Overnight shifts.
+- Manual overrides.
+
+Use a clear calculation order:
+
+1. Validate start and end times.
+2. Determine elapsed time, accounting for overnight shifts when applicable.
+3. Apply configured unpaid breaks.
+4. Determine eligible regular and overtime hours.
+5. Calculate overtime using the configured rate.
+6. Calculate late-coming deductions using the configured policy.
+7. Apply approved manual overrides.
+8. Calculate the final payable amount.
+
+Do not assume that all labour categories share one standard schedule.
+
+Do not assume that all teams use hourly pay. A team may be paid a fixed daily amount even when start and end times are recorded.
+
+Missing in/out times must not automatically produce zero payment if the rate is count-based. They must also not trigger fabricated time deductions.
+
+Where the rules are ambiguous, show a warning and let authorized staff correct or explicitly confirm the applicable amount.
+
+10. ADDITIONAL CHARGES AND EXPENSES
+
+Do not implement extra expenses as a fixed collection of database columns.
+
+Implement a flexible transaction system that allows staff to add an unlimited number of charge items.
+
+Each item must support:
+
+- Date.
+- Team or weekly assignment.
+- Category.
+- Description.
+- Quantity, optional.
+- Unit, optional.
+- Rate, optional.
+- Calculation method.
+- Calculated amount.
+- Final amount.
+- Remarks.
+- Creator and timestamps.
+
+Example categories:
+
+- Machine rental.
+- Grinding machine.
+- Wheelbarrow hire.
+- Materials.
+- Steel blades.
+- Nails and cutting wheels.
+- Transport trips.
+- Water loads.
+- Auto charge.
+- Fixed service charge.
+- Miscellaneous expense.
+- Custom category.
+
+A staff member must be able to create a new category or type a new description without a software update.
+
+Example:
+
+Description: Grinding machine
+Quantity: 4
+Rate: ₹100
+Amount: ₹400
+
+Description: Steel blade
+Quantity: 5
+Rate: ₹180
+Amount: ₹900
+
+Allow fixed charges with no quantity or rate.
+
+Charges must be linked to the correct team/week, and optionally to a particular day or attendance entry. Do not count a weekly charge seven times merely because it is associated with a weekly team.
+
+11. ADVANCES, DEDUCTIONS, CREDITS, AND BALANCES
+
+Provide a separate financial adjustment module.
+
+Support:
+
+- Advance payments.
+- Advance deductions.
+- Percentage deductions.
+- Fixed deductions.
+- Other authorized credits.
+- Additional payments.
+- Corrections and reversals.
+
+Every adjustment must have a description, date, amount, adjustment type, associated team or payment, and creator.
+
+Do not confuse an advance paid previously with an advance deduction applied to the current payable balance.
+
+Use the following default formulas:
+
+Labour subtotal = sum of all category amounts.
+
+Overtime subtotal = sum of applicable overtime amounts.
+
+Additional charges subtotal = sum of charge items.
+
+Gross amount = labour subtotal + overtime subtotal + additional charges subtotal.
+
+Final payable = gross amount + credits - deductions - advances applied.
+
+An advance payment already deducted in an earlier transaction must not be deducted a second time.
+
+Support an explicit alternative payment calculation only when configured and documented. Keep supplier or contractor bills separate from count-based labour attendance while allowing them to appear in the consolidated weekly summary.
+
+12. WEEKLY DASHBOARD
+
+Create a dedicated weekly workspace.
+
+Header:
+
+- Selected week start and end dates.
+- Previous week and next week navigation.
+- Team search.
+- Add Team button.
+- Add Attendance button.
+- Export report button.
+- Week status.
+
+Show all seven dates in the week.
+
+For each date, display:
+
+- Attendance entry count.
+- Teams recorded.
+- Total labour count by category.
+- Daily labour subtotal.
+- Overtime amount.
+- Additional charges.
+- Deductions and advances applied, where relevant.
+- Daily net/payable total.
+
+Allow users to expand a date and view its attendance entries.
+
+Each entry must provide Edit, Duplicate, and Delete actions subject to authorization. Deletion of financial records must be auditable and should use soft deletion or a reversal mechanism where appropriate.
+
+The dashboard must show saved data, not hard-coded sample statistics.
+
+Provide clear indicators for:
+
+- Missing rate.
+- Missing or invalid configuration.
+- Calculation override.
+- Unsaved changes.
+- Failed save.
+- Duplicate or potentially conflicting entry.
+- Data requiring correction.
+
+13. TEAM-WISE WEEKLY REPORT
+
+Generate a detailed report for each team with:
+
+- Team name and reporting week.
+- Daily attendance rows.
+- Dates and in/out times.
+- Counts for every labour category.
+- Rate per category.
+- Daily category amounts.
+- Daily totals.
+- Weekly category count totals.
+- Weekly category amount totals.
+- Overtime details.
+- Additional charges.
+- Credits and deductions.
+- Advances applied.
+- Gross and final payable amounts.
+
+Use dynamic columns or separate category lines according to the selected team configuration.
+
+Do not assume that every team has exactly two labour categories.
+
+Provide a print-ready layout suitable for the company’s existing weekly report workflow.
+
+14. CONSOLIDATED WEEKLY PAYMENT SUMMARY
+
+The final page must be a consolidated table listing all relevant teams and payment records.
+
+Suggested columns:
+
+- Serial number.
+- Team or contractor name.
+- Labour subtotal.
+- Overtime.
+- Additional charges.
+- Credits.
+- Deductions.
+- Advances applied.
+- Gross amount.
+- Final payable.
+
+Include a grand total.
+
+Support multiple payment record types:
+
+- Count-based labour team.
+- Fixed-charge work.
+- Transport supplier.
+- Machine or equipment rental.
+- Contractor or supplier bill.
+- Other authorized weekly payable.
+
+A supplier bill such as a PCC/AAC works bill must be represented as a separate financial record with its own gross amount, advances, and balance. Do not fabricate daily attendance for such bills.
+
+The consolidated summary must reconcile with the underlying team records.
+
+For every team:
+
+Sum of its source transaction amounts must equal the amount shown in its summary row, subject to the explicitly configured inclusion and deduction rules.
+
+The grand total must equal the sum of included summary rows.
+
+Do not double-count a team, merged record, advance, or expense.
+
+15. TEAM MERGING — BOTH MODES
+
+Implement two different merging features.
+
+Mode A: Summary-only merge
+
+Allow staff to select multiple teams or summary rows and group them under one display name.
+
+Example:
+
+Vishnu Civil Labour: ₹24,500
+Vishnu Painter: ₹33,300
+
+Combined summary group: ₹57,800.
+
+Keep the original team records unchanged and individually accessible.
+
+The merged display row must derive its total from the underlying source records. It must not create duplicate payment transactions.
+
+Mode B: Attendance merge
+
+Allow staff to combine compatible attendance entries or reassign them to a single destination team.
+
+Requirements:
+
+- Show a preview before confirming.
+- Show which entries and amounts will be affected.
+- Detect duplicate or overlapping source records.
+- Preserve original record IDs and audit history.
+- Recalculate the destination totals.
+- Preserve historical rates unless an authorized explicit correction is requested.
+- Prevent the same source entry from being counted twice.
+- Provide a reversible merge or an explicit controlled correction process.
+
+Do not physically delete source records when merging.
+
+16. MONTHLY REPORTS
+
+The monthly dashboard must support any selected month and year.
+
+Show:
+
+- Total gross amount.
+- Total payable.
+- Total labour amount.
+- Overtime.
+- Additional charges.
+- Deductions.
+- Advances applied.
+- Team-wise spending.
+- Daily spending.
+- Weekly spending.
+- Spending by labour category.
+- Spending by additional-charge category.
+- Historical week-by-week comparisons.
+
+Monthly reports must include records according to their actual transaction dates and the defined accounting/reporting policy.
+
+A Saturday–Friday week may cross two calendar months. Do not silently assign every transaction to the month containing the Saturday.
+
+Show a clear distinction between:
+
+1. Calendar-month financial totals based on transaction dates.
+2. Weekly reports grouped by Saturday–Friday periods.
+
+Document how weekly totals reconcile with monthly totals.
+
+17. PDF AND EXCEL EXPORTS
+
+Implement working exports, not placeholder buttons.
+
+PDF requirements:
+
+- Company name and report title.
+- Week start and end dates.
+- Team-wise attendance tables.
+- Detailed additional charges.
+- Overtime and deductions.
+- Consolidated payment summary.
+- Clear subtotal and grand total rows.
+- INR formatting.
+- Page numbers and repeated table headers.
+- Clean A4 printing.
+- No overlapping text, clipped amounts, missing rows, or unnecessary blank pages.
+
+Excel requirements:
+
+- Separate sheets for summary, team attendance, and additional charges where appropriate.
+- Actual numeric amount cells, not amounts stored as text.
+- Formula or source data traceability.
+- Correct date formatting.
+- Totals that reconcile with the PDF and application.
+- No dropped rows when a report contains many teams.
+
+Exports must use saved backend data and current calculation results. Do not export only the visible page of a paginated table.
+
+18. DATABASE DESIGN
+
+Design a normalized PostgreSQL schema with foreign keys, appropriate indexes, constraints, and migrations.
+
+At minimum, include:
+
+- profiles/users.
+- teams.
+- labour_categories.
+- team_role_templates.
+- work_weeks.
+- team_week_assignments.
+- attendance_entries.
+- attendance_lines.
+- rate_rules or equivalent rate configuration.
+- additional_charge_categories.
+- additional_charges.
+- financial_adjustments.
+- payment_records for supplier or contractor bills where applicable.
+- merge_groups.
+- merge_members.
+- report_snapshots or report versions.
+- audit_logs.
+
+Use UUID primary keys and proper foreign keys.
+
+Use date columns for reporting dates and appropriate time columns for daily start/end times. Use timestamps for audit metadata.
+
+Store money using PostgreSQL NUMERIC with a defined precision or integer paise storage. Do not use floating-point columns for authoritative monetary amounts.
+
+Enforce non-negative counts and valid rate values. Handle zero rates deliberately and distinguish them from missing rates.
+
+Add appropriate unique constraints and idempotency controls without preventing legitimate multiple attendance entries on one date.
+
+Keep the data model normalized. Do not store all attendance, rates, and expenses inside one JSON blob.
+
+Use JSON only for suitable snapshots or flexible configuration where its structure is documented and validated.
+
+Create and apply version-controlled database migrations.
+
+19. SECURITY AND AUDIT
+
+Security is mandatory.
+
+- Enable RLS on every sensitive table.
+- Deny unauthenticated access to company financial data.
+- Ensure users cannot promote themselves to admin.
+- Ensure staff cannot change their own role or bypass permissions through direct API calls.
+- Enforce permissions at the database or trusted backend layer, not only by hiding frontend buttons.
+- Validate every write operation.
+- Protect privileged server functions.
+- Use secure authentication and appropriate session handling.
+- Never expose service-role keys in the browser.
+- Add rate limiting and sensible request validation where supported.
+- Record the authenticated actor for each financial change.
+
+Audit logs must capture:
+
+- Actor.
+- Timestamp.
+- Action.
+- Entity and record ID.
+- Previous values.
+- New values.
+- Reason for financial overrides or controlled corrections.
+- Related merge or reversal information.
+
+Staff may edit operational records, but changes must remain traceable.
+
+Use soft deletion or reversal for financial transactions. Do not erase audit logs when a user deletes a record.
+
+20. DATA PERSISTENCE AND ERROR HANDLING
+
+All important records must be stored in PostgreSQL through the configured backend.
+
+Do not use localStorage as the authoritative database.
+
+Local storage may be used for harmless interface preferences or an explicitly designed offline draft queue, but never as the only place where attendance or payments exist.
+
+Provide:
+
+- Loading states.
+- Empty states.
+- Save success feedback.
+- Save failure feedback.
+- Retry behavior.
+- Form validation.
+- Database error handling.
+- Confirmation for destructive actions.
+- Unsaved-change warnings.
+- Safe handling of duplicate submissions.
+- Refresh persistence.
+- Session expiry handling.
+
+If offline support is not implemented, clearly show when the user is offline and prevent false claims that an entry has been saved.
+
+Never display success before the database confirms the operation.
+
+21. REFERENCE REPORTS AND VALIDATION DATA
+
+The company uses manually prepared weekly reports, including:
+
+- 26/09/2026–02/10/2026.
+- 17/10/2026–23/10/2026.
+
+These reports contain numerous teams, category-specific rates, daily attendance counts, in/out times, overtime, late-coming records, fixed charges, machine rentals, materials, transport trips, advances, deductions, supplier balances, and a consolidated weekly summary.
+
+Use these reports as reference material for supported formats and calculations if they are uploaded to the project.
+
+Important reference examples include:
+
+Example 1 — Painter:
+Count 33 × ₹950 = ₹31,350.
+
+Example 2 — Heeralal / Lumia Building:
+Masons: 59 × ₹1,400 = ₹82,600.
+Helpers: 35 × ₹1,000 = ₹35,000.
+Combined labour amount = ₹1,17,600.
+
+Example 3 — Museum Cleaning:
+Labour amount ₹15,600 + weekly auto charge ₹2,400 = ₹18,000.
+
+Example 4 — Anburaj Painter:
+Gross ₹17,100.
+Deduction 6.25% = ₹1,068.75.
+Payable ₹16,031.25.
+
+Example 5 — Pankaj supplier/contractor bill:
+Gross bill ₹2,84,800.
+Advance payment ₹2,10,000.
+Remaining payable balance ₹74,800.
+
+These are test fixtures, not universal rates or default company data.
+
+The supplied historical reports contain some inconsistent dates, row amounts, or totals. Do not silently copy an inconsistent total and label it verified.
+
+Build an import/reconciliation workflow that can flag:
+
+- A date outside the reporting week.
+- A total that does not match the sum of its lines.
+- A rate that does not match the recorded calculation.
+- Missing rate or amount values.
+- Duplicate entries.
+- An advance that is deducted twice.
+- A summary amount that does not reconcile with the underlying entries.
+
+Never change a historical source figure silently. Preserve the original value, calculate the expected amount separately, and flag the discrepancy for staff review.
+
+Do not invent data for missing records.
+
+22. REQUIRED AUTOMATED TESTS
+
+Write and run automated tests for the following.
+
+Week boundaries
+
+- Saturday starts a new reporting week.
+- Friday is the last day of that week.
+- A date on Sunday belongs to the correct Saturday–Friday period.
+- Month-crossing weeks work correctly.
+- Time zone handling does not shift dates unexpectedly.
+
+Financial calculations
+
+- 33 × ₹950 = ₹31,350.
+- 59 × ₹1,400 = ₹82,600.
+- 35 × ₹1,000 = ₹35,000.
+- ₹82,600 + ₹35,000 = ₹1,17,600.
+- ₹15,600 + ₹2,400 = ₹18,000.
+- 6.25% × ₹17,100 = ₹1,068.75.
+- ₹17,100 − ₹1,068.75 = ₹16,031.25.
+- ₹2,84,800 − ₹2,10,000 = ₹74,800.
+- Multiple additional charge lines sum correctly.
+- Zero counts produce zero labour amounts.
+- Decimal amounts and rounding work correctly.
+- Manual overrides preserve both the calculated and final values.
+- Applying an advance once changes payable correctly.
+- The same advance cannot be deducted twice unintentionally.
+
+Data integrity
+
+- Updating a default rate does not change old weeks.
+- Editing an entry updates the correct totals.
+- Deleting or reversing an entry updates reports correctly.
+- Multiple entries on the same day are supported.
+- Merged summaries do not double-count transactions.
+- Attendance merges preserve audit history.
+- Concurrent or repeated submissions do not create accidental duplicates.
+- Monthly totals reconcile according to the documented policy.
+
+Authorization
+
+- Unauthenticated users cannot read financial records.
+- Staff cannot access admin-only operations.
+- Staff cannot promote themselves to admin.
+- Admin can access and correct all company records.
+- Database RLS policies enforce the same restrictions as the UI.
+
+Do not report tests as passing unless they have actually been executed.
+
+23. IMPLEMENTATION PROCESS
+
+Build the application in the following order.
+
+Phase 1: Inspect the project, define the architecture, configure dependencies, and set up the database.
+
+Phase 2: Create migrations, authentication, user profiles, roles, and RLS policies.
+
+Phase 3: Implement teams, categories, team templates, and week generation.
+
+Phase 4: Implement daily attendance entry, rate snapshots, and calculations.
+
+Phase 5: Implement overtime, late-coming adjustments, additional charges, advances, and deductions.
+
+Phase 6: Implement weekly and monthly reports and reconciliation.
+
+Phase 7: Implement both merge modes and audit history.
+
+Phase 8: Implement PDF and Excel exports.
+
+Phase 9: Execute automated tests, fix defects, verify security, and test responsive layouts.
+
+Do not generate all screens as unrelated static components. Connect each screen to the correct database entities and backend operations.
+
+Do not create fake login behavior, fake save buttons, fake report exports, or simulated financial totals in the final application.
+
+If the platform cannot complete the entire system in one operation, finish a working phase, explain what is implemented and what remains, and continue from the existing codebase. Do not replace functioning work with a fresh mockup.
+
+24. DEFINITION OF DONE
+
+The application is not complete until:
+
+- Admin and staff authentication work.
+- Permissions are enforced by the backend/database.
+- Team templates can be created and reused.
+- Daily count-based attendance can be saved, edited, and retrieved.
+- Multiple categories and multiple entries per day work.
+- Rates are preserved historically.
+- Automatic calculations and staff overrides work.
+- Additional charges and financial adjustments work.
+- Both merge modes work without double-counting.
+- Daily, weekly, and monthly reports reconcile.
+- PDF and Excel exports contain the full report.
+- Data survives page refreshes and new sessions.
+- The required automated tests have been run and their results reported.
+- No known critical errors remain in the core workflow.
+- Unimplemented features and unresolved business rules are explicitly listed.
+
+25. FIRST ACTION
+
+Start by inspecting the current project and determining whether Supabase is connected.
+
+Then create the architecture and implement the first complete vertical slice:
+
+1. Authentication.
+2. Admin/staff authorization.
+3. Database migrations and RLS.
+4. Team creation.
+5. Saturday–Friday week selection.
+6. Daily count-based attendance entry.
+7. Category rates and automatic amount calculations.
+8. Persisted data retrieval and editing.
+9. Automated tests for this workflow.
+
+After completing and testing that slice, continue through the remaining phases using the same codebase.
+
+Do not stop after generating the design. Build working functionality, verify it, fix errors, and clearly report the real completion status.

@@ -1,0 +1,884 @@
+# BOLT AI — EXISTING LABOUR ERP: ADD LABOURER USER ACCOUNTS, GPS GEOFENCED ATTENDANCE AND RANDOM VERIFICATION
+
+## 1. PROJECT INSTRUCTION — EXTEND THE EXISTING APPLICATION
+
+Implement a new Labourer User Management and GPS Attendance module in the existing Labour Attendance & Weekly Payment ERP.
+
+The current project already supports web and mobile interfaces. The previous ERP improvements, including staff isolation, master-admin and secondary-admin permissions, attendance approval, weekly payment management, financial reports, petty cash, attachments, notifications, and audit history, have already been implemented.
+
+**Do not rebuild the application or replace the existing attendance system.**
+
+Before coding:
+
+1. Inspect the existing project and understand its current architecture.
+2. Inspect the existing authentication, user roles, staff/team assignments, worksite management, attendance tables, attendance calculations, approval workflow, payment reports, notifications, and database.
+3. Reuse existing services, components, APIs, and database relationships wherever possible.
+4. Add the new labourer role and GPS attendance capabilities without breaking existing staff attendance.
+5. Create safe, reversible database migrations.
+6. Preserve all existing records and functionality.
+7. Test the complete workflow on both the existing web application and mobile application.
+
+The new feature must integrate with the existing weekly reporting and approval system.
+
+## 2. ADD A NEW USER ROLE: LABOURER
+
+Introduce a new role named `LABOURER`.
+
+The existing roles must remain:
+
+- Master Admin
+- Secondary Admin / Manager
+- Staff
+- Labourer
+
+Labourers are individual workers who can log in to the application and record their own attendance using their mobile devices.
+
+### Labourer registration
+
+Authorized staff and admins must be able to create labourer accounts.
+
+Registration fields:
+
+- Full name.
+- Mobile number.
+- Aadhaar number, where legally necessary.
+- Aadhaar verification/reference status, if supported.
+- Assigned team.
+- Assigned project/site.
+- Designation or labour category.
+- Employment status.
+- Login method.
+- Account creation date.
+- Created by.
+- Assigned attendance supervisor.
+- Optional profile photograph.
+
+The labourer must be linked to the correct team, project, and attendance supervisor.
+
+Allow labourers to be transferred between teams, but preserve their previous team assignments and historical attendance.
+
+Do not allow staff to create labourers outside their authorized team/project scope.
+
+### Aadhaar privacy and security
+
+Aadhaar information is sensitive personal information.
+
+- Do not make full Aadhaar collection mandatory unless legally necessary.
+- Prefer a masked Aadhaar number or an appropriate verified reference when sufficient.
+- If full Aadhaar storage is legally necessary, encrypt it using a secure encryption mechanism.
+- Store encryption keys in server-side secrets or a proper key-management service.
+- Never expose encryption keys in frontend code.
+- Mask Aadhaar in normal screens, reports, exports, and notifications.
+- Restrict access to authorized administrators.
+- Record who accessed or modified sensitive identity details.
+- Never log full Aadhaar numbers.
+- Do not use Aadhaar as the labourer's password or expose it as a public identifier.
+
+Provide a secure identity-management design that can operate without collecting unnecessary Aadhaar information.
+
+## 3. LABOURER LOGIN SYSTEM
+
+Support two authentication methods.
+
+### Method A — Mobile number + OTP
+
+- Labourer enters the registered mobile number.
+- The system sends an OTP using the configured authentication provider.
+- The labourer verifies the OTP.
+- The system authenticates the correct labourer account.
+- OTP must have an expiry time and retry/rate limits.
+- Prevent OTP abuse and account enumeration.
+
+### Method B — Username + Password
+
+- An authorized admin or staff member creates login credentials.
+- Labourer uses the assigned username and password.
+- Passwords must be hashed securely.
+- Provide secure password-reset functionality.
+- Never display an existing password in admin screens.
+- Admins can initiate a password reset.
+
+### Admin configuration
+
+The master admin must be able to configure:
+
+- OTP login enabled/disabled.
+- Username/password login enabled/disabled.
+- Both methods enabled.
+- Default login method for newly created labourers.
+
+The authentication method must not allow an unauthorized user to create an account or impersonate another labourer.
+
+## 4. LABOURER MOBILE DASHBOARD
+
+Create a simple mobile-first dashboard specifically for labourers.
+
+It should display:
+
+- Labourer's name.
+- Assigned team.
+- Assigned worksite.
+- Current attendance status.
+- Today's date.
+- Current check-in time, if checked in.
+- Current check-out time, if checked out.
+- Total working duration.
+- Attendance approval status.
+- Random verification requests.
+- Recent attendance history.
+- Weekly attendance summary.
+- Weekly payment status, where applicable.
+- Notifications.
+
+Primary actions:
+
+- Check In.
+- Check Out.
+- Respond to Verification Request.
+- View Attendance History.
+- View Notifications.
+
+Do not expose staff-management, financial ledgers, other workers' reports, or administrative options to labourers.
+
+## 5. WORKSITE AND GPS GEOFENCE MANAGEMENT
+
+Create a Worksite Management feature or extend the existing project/location management page.
+
+Each worksite must support:
+
+- Worksite name.
+- Project name.
+- Address.
+- Latitude.
+- Longitude.
+- Allowed attendance radius in metres.
+- GPS accuracy threshold.
+- Active/inactive status.
+- Assigned teams.
+- Assigned labourers.
+- Created by.
+- Updated by.
+
+Example:
+
+Worksite: Museum Project
+Latitude: Configured GPS latitude
+Longitude: Configured GPS longitude
+Allowed radius: 100 metres
+Maximum accepted GPS accuracy: Configurable
+
+The radius and accuracy threshold must be configurable by an authorized admin.
+
+Support multiple worksites and teams working at different locations.
+
+A team may be assigned a different worksite in a different week. Historical attendance must retain the original assigned worksite and its validation parameters.
+
+Do not hardcode a single location or radius for the entire company.
+
+## 6. GPS CHECK-IN WORKFLOW
+
+When a labourer clicks **Check In**:
+
+1. Check that the labourer is authenticated.
+2. Verify that the account is active.
+3. Verify that the labourer has an active team and worksite assignment.
+4. Request location permission from the device if it has not already been granted.
+5. Obtain a fresh location fix.
+6. Collect latitude, longitude, GPS accuracy, and device location timestamp.
+7. Send the location data to the backend.
+8. The backend must calculate the distance between the reported location and the assigned worksite coordinates.
+9. Verify the configured geofence radius.
+10. Validate the GPS accuracy threshold.
+11. Verify that there is no existing active check-in that would cause duplicate attendance.
+12. Record the check-in result and timestamp.
+
+### Successful check-in
+
+If the location is within the permitted radius and satisfies the configured accuracy requirements:
+
+- Record the check-in timestamp.
+- Record the location-validation result.
+- Record the worksite reference.
+- Record GPS accuracy.
+- Record the distance from the worksite.
+- Mark the check-in as valid or awaiting approval, according to the existing approval workflow.
+- Show a successful check-in confirmation.
+
+### Invalid location
+
+If the labourer is outside the allowed radius:
+
+- Do not silently mark the attendance as valid.
+- Display the approximate distance and a clear explanation.
+- Allow the user to retry if the location accuracy is poor.
+- Create a location exception or review flag where appropriate.
+- Preserve the attempt details according to the configured retention policy.
+
+### Poor GPS accuracy
+
+If the GPS accuracy is worse than the configured threshold:
+
+- Ask the labourer to enable device location and retry.
+- Allow a limited number of retries.
+- Do not accept a low-confidence location as automatically valid.
+- Allow an authorized admin to review exceptional cases with a mandatory reason.
+
+Do not trust frontend geofence validation alone. The backend must independently perform distance and validation checks.
+
+## 7. GPS CHECK-OUT WORKFLOW
+
+When the labourer clicks **Check Out**:
+
+1. Verify that a valid active check-in exists.
+2. Request a fresh GPS location.
+3. Validate the location against the assigned worksite.
+4. Record the checkout timestamp.
+5. Record GPS coordinates, accuracy, distance, and validation result.
+6. Calculate the total working duration.
+7. Calculate payable working hours using the existing configured attendance rules.
+8. Send the completed attendance record into the appropriate approval workflow.
+
+If the labourer attempts to check out outside the worksite:
+
+- Flag the event.
+- Do not silently discard the checkout attempt.
+- Allow an authorized admin to review the exception.
+- Preserve the original check-in and all event history.
+
+Prevent:
+
+- Checkout without check-in.
+- Multiple active check-ins.
+- Duplicate checkout events.
+- Negative working duration.
+- Invalid or manipulated timestamps.
+- Unauthorized edits to another labourer's attendance.
+
+Use server timestamps as the authoritative record of event time. Retain device timestamps separately for diagnostics.
+
+## 8. IMPORTANT: NO CONTINUOUS GPS TRACKING
+
+The system must not continuously track labourers.
+
+Collect location only when:
+
+1. Labourer performs Check In.
+2. Labourer performs Check Out.
+3. Labourer responds to an authorized random verification request.
+4. An explicitly authorized, user-visible location-verification action occurs.
+
+Do not:
+
+- Track location in the background throughout the day.
+- Run continuous GPS services.
+- Collect location when the labourer is not using an attendance action.
+- Track labourers after checkout.
+- Collect location without showing a clear reason and requesting the required permission.
+
+Explain location usage to labourers in a simple privacy notice.
+
+If location permission is denied, provide a clear error and a controlled exception/review process.
+
+## 9. RANDOM ATTENDANCE VERIFICATION — 30-MINUTE RESPONSE WINDOW
+
+Implement an attendance verification system to detect proxy attendance and suspicious activity.
+
+An authorized administrator can select:
+
+- Individual labourer.
+- Entire team.
+- Multiple labourers from an assigned team.
+
+The administrator clicks **Request Attendance Verification**.
+
+### Request lifecycle
+
+1. Create a verification request.
+2. Record the requesting administrator.
+3. Record the target labourer or team.
+4. Record the request timestamp.
+5. Set the expiry deadline to 30 minutes after the request.
+6. Send a persistent in-app notification to the selected labourers.
+7. Send a push notification where the existing mobile application supports it and permission is available.
+8. Show a countdown in the labourer's application.
+9. Labourer opens the notification and clicks **Verify My Attendance**.
+10. The application requests a fresh GPS location.
+11. The backend validates the location against the assigned worksite.
+12. Record the response timestamp and verification result.
+
+### Verification statuses
+
+Use clear states:
+
+- Pending.
+- Responded — Valid Location.
+- Responded — Outside Radius.
+- Responded — Poor Accuracy.
+- Expired — No Response.
+- Cancelled.
+- Needs Manual Review.
+
+If the worker does not respond within 30 minutes:
+
+- Mark the request as expired.
+- Notify the requesting administrator.
+- Flag the relevant attendance for review.
+- Do not automatically mark the entire day's attendance as fraudulent.
+- Do not automatically deduct wages.
+- Preserve the event and request history.
+
+### Verification restrictions
+
+- Only authorized admins can request verification for workers within their assigned scope.
+- Staff cannot request verification for unrelated teams.
+- Secondary admins can request verification only for their assigned labourers.
+- Master admin can request verification for all labourers.
+- The master admin may authorize an admin account to participate in attendance as a worker; this must not automatically give that account permission to verify itself.
+
+Allow configurable verification request frequency and rate limits to prevent excessive or abusive requests.
+
+## 10. ADMIN AND STAFF ACCOUNTS MUST ALSO SUPPORT ATTENDANCE
+
+This is a critical requirement.
+
+Some secondary admins or staff members may also be required to record attendance like ordinary workers.
+
+The system must support an account having:
+
+- Its administrative role.
+- Its separate attendance-participant assignment.
+
+Do not change an admin's actual role to Staff or Labourer just because they are required to submit attendance.
+
+### Attendance participation permission
+
+The master admin must be able to enable or disable attendance participation for:
+
+- Secondary admins.
+- Staff members.
+- Other eligible accounts.
+
+The master admin can assign an attendance supervisor to each participant.
+
+For example:
+
+Master Admin
+  → Secondary Admin A
+      → Assigned Staff 1
+      → Assigned Staff 2
+      → Assigned Admin B
+
+In this example:
+
+- Secondary Admin A manages the assigned staff and Admin B.
+- Admin B retains their actual administrative role.
+- Admin B also has an attendance-participant assignment.
+- Admin B submits attendance to Secondary Admin A.
+- Secondary Admin A can review and approve Admin B's attendance within the assigned permission scope.
+
+The same model must support staff members and labourers.
+
+### Attendance supervisor assignment
+
+For every attendance participant, store:
+
+- Participant account.
+- Actual account role.
+- Attendance supervisor.
+- Assigned team/project.
+- Assigned worksite.
+- Attendance method.
+- Effective date.
+- Assignment status.
+
+When the master admin assigns a participant to a secondary admin:
+
+- That secondary admin can receive and review the participant's attendance.
+- The secondary admin can request random verification for the participant.
+- The secondary admin can view the participant's attendance within the assigned scope.
+- The secondary admin cannot modify unrelated account permissions or financial modules.
+
+Support changes in attendance supervisors without losing historical approval records.
+
+Prevent self-approval.
+
+## 11. ADMINISTRATOR ATTENDANCE PERMISSIONS
+
+The master admin must be able to configure:
+
+- Which secondary admins participate in attendance.
+- Which staff participate in attendance.
+- Which labourers are assigned to each admin.
+- Which admin supervises each participant.
+- Which admin can request random verification.
+- Which admin can approve or reject attendance.
+- Which admin can view location validation details.
+- Which admin can resolve location exceptions.
+
+Attendance permissions must be independent of financial permissions and staff-report access permissions.
+
+Do not assume that access to one module grants access to another.
+
+## 12. ATTENDANCE APPROVAL INTEGRATION
+
+Integrate GPS attendance with the existing approval workflow.
+
+### Labourer attendance
+
+1. Labourer checks in.
+2. Labourer checks out.
+3. The system creates a completed attendance submission.
+4. The assigned administrator receives a notification.
+5. The administrator reviews the times, GPS validation, worksite, duration, and exceptions.
+6. The administrator approves or rejects the submission.
+7. Only approved attendance contributes to the weekly payment calculation.
+
+Where the existing business workflow permits attendance to be provisionally reviewed before checkout, preserve the check-in event but do not calculate a final payable duration until checkout or an authorized adjustment is available.
+
+### Admin and staff attendance
+
+Use the same approval model for admin/staff participants.
+
+The assigned supervisor must review their attendance. Users must not approve their own attendance.
+
+### Manual overrides
+
+Allow an authorized admin to resolve exceptional situations such as:
+
+- GPS unavailable.
+- Poor GPS accuracy.
+- Device malfunction.
+- Emergency checkout.
+- Incorrect location assignment.
+- Network interruption.
+
+Every override must require:
+
+- Reason.
+- Description.
+- Administrator identity.
+- Timestamp.
+- Previous status.
+- New status.
+
+Mark overridden attendance visibly as **Admin Override** and preserve its original GPS evidence.
+
+## 13. OFFLINE AND NETWORK INTERRUPTION HANDLING
+
+The mobile application may temporarily lose internet connectivity.
+
+Design safe handling for this situation.
+
+- Do not pretend that an offline event has been server-approved.
+- If offline attendance capture is supported, store the event securely in a pending local queue.
+- Record the device event timestamp separately from the server receipt timestamp.
+- Upload when connectivity returns.
+- Flag delayed submissions for review.
+- Prevent duplicate uploads using unique event IDs and idempotency keys.
+- Validate the event server-side after synchronization.
+- Do not automatically accept a delayed GPS event as fully verified without applying the configured rules.
+
+If reliable offline GPS capture is not supported by the existing mobile architecture, clearly display that internet connectivity is required.
+
+## 14. ANTI-FRAUD AND LOCATION VALIDATION
+
+Implement reasonable anti-fraud safeguards without claiming GPS is completely tamper-proof.
+
+Consider:
+
+- GPS accuracy threshold.
+- Distance from assigned worksite.
+- Stale location timestamps.
+- Impossible timestamp sequences.
+- Duplicate check-ins.
+- Multiple active attendance sessions.
+- Suspiciously repeated identical coordinates.
+- Mock-location indicators where the mobile platform exposes reliable signals.
+- Unusually delayed synchronization.
+- Frequent location exceptions.
+- Repeated missed verification requests.
+
+Create review flags rather than automatically declaring fraud.
+
+Provide an admin page showing:
+
+- Labourer.
+- Team.
+- Worksite.
+- Attendance date.
+- Check-in and checkout.
+- Distance from worksite.
+- GPS accuracy.
+- Verification status.
+- Exception reason.
+- Device/network diagnostic information where available.
+- Assigned approver.
+
+Do not use an unsupported browser or device signal as definitive proof of mock GPS.
+
+## 15. LABOURER ATTENDANCE REPORTS
+
+Integrate individual labourer attendance with the existing reporting structure.
+
+Each labourer's report should show:
+
+- Daily attendance.
+- Check-in time.
+- Check-out time.
+- Working duration.
+- Late arrival.
+- Overtime, where configured.
+- Worksite.
+- GPS validation status.
+- Verification requests.
+- Approval status.
+- Admin overrides.
+- Rejections and reasons.
+
+Provide weekly and monthly reports.
+
+The existing Saturday–Friday reporting week must remain unchanged.
+
+### Team reports
+
+Team reports must be able to show:
+
+- Total registered labourers.
+- Labourers assigned to the team.
+- Present.
+- Absent.
+- Checked in.
+- Checked out.
+- Pending approval.
+- GPS exceptions.
+- Verification expired.
+- Approved attendance.
+
+Provide individual drill-down from a team report.
+
+## 16. INTEGRATION WITH EXISTING COUNT-BASED ATTENDANCE
+
+The existing application already supports count-based team attendance and weekly calculations.
+
+Do not remove or break that system.
+
+Support two attendance methods:
+
+1. Count-based team attendance.
+2. Individual labourer GPS attendance.
+
+The authorized admin must configure the attendance method for each applicable team/project or reporting arrangement.
+
+Avoid double-counting.
+
+If a team uses individual labourer attendance, do not also count those same workers through a count-based attendance entry for the same work period unless an explicitly configured reconciliation process permits it.
+
+Create a reconciliation mechanism to detect:
+
+- Workers counted individually and in a team total.
+- Duplicate attendance for the same worker and work period.
+- Inconsistent team assignments.
+- Missing checkouts.
+- Attendance recorded against the wrong worksite.
+
+Historical count-based records must remain unchanged.
+
+## 17. PAYROLL AND WEEKLY PAYMENT INTEGRATION
+
+Use the existing weekly payment and approval calculations.
+
+Approved labourer attendance can contribute to weekly payment calculations according to the configured employment and rate rules.
+
+Support:
+
+- Daily rate.
+- Hourly rate.
+- Shift rate.
+- Overtime rate.
+- Configured late-coming deductions, if applicable.
+- Additional charges and authorized adjustments.
+
+The admin must be able to configure how individual labourer attendance contributes to team-level and weekly payment calculations.
+
+Do not assume that every labourer is paid by the same formula.
+
+Pending, rejected, or unapproved attendance must not be included in approved payable totals.
+
+Keep the existing payment-status functionality:
+
+- Pending.
+- Paid.
+- Partially Paid.
+- Not Paid / Overdue.
+
+A payment settlement must never delete attendance history.
+
+## 18. NOTIFICATIONS
+
+Integrate with the existing notification system.
+
+Send notifications for:
+
+- Labourer account creation.
+- Login or account activation information.
+- Successful check-in.
+- Successful check-out.
+- Attendance submission.
+- Attendance approval.
+- Attendance rejection.
+- Random verification request.
+- Verification deadline approaching, where configured.
+- Verification completed.
+- Verification expired.
+- Location exception.
+- Admin override.
+- Weekly report availability.
+- Payment status changes.
+
+Notifications must be delivered only to the relevant account.
+
+Persist notification records in the database. Maintain unread/read status and notification history.
+
+## 19. AUDIT HISTORY
+
+Extend the existing audit system to record:
+
+- Labourer account creation and changes.
+- Aadhaar access or modification events.
+- Login-method changes.
+- Team assignments.
+- Worksite assignments.
+- GPS check-in and checkout events.
+- Location-validation results.
+- Verification requests.
+- Verification responses.
+- Verification expiry.
+- Approval and rejection.
+- Manual attendance overrides.
+- Admin attendance-supervisor changes.
+- Payment-related attendance adjustments.
+
+Record actor, participant, timestamp, previous/new values, and mandatory reasons where relevant.
+
+Never allow ordinary users to alter audit history.
+
+## 20. DATABASE REQUIREMENTS
+
+Inspect and extend the actual runtime database.
+
+Do not assume a particular database is active without inspecting the connection and migrations.
+
+Create the equivalent of the following capabilities in the existing schema:
+
+- Labourer profiles.
+- Labourer authentication identities.
+- Encrypted sensitive identity references.
+- Team and labourer assignments.
+- Worksite coordinates and geofence settings.
+- Attendance participation assignments.
+- Check-in events.
+- Check-out events.
+- Location validation records.
+- Attendance verification requests.
+- Verification responses.
+- Attendance exception records.
+- Attendance override history.
+- Labourer attendance approval records.
+- Notification records.
+- GPS event diagnostics.
+- Labourer rate and employment configuration.
+
+Use appropriate foreign keys, indexes, uniqueness constraints, and transactions.
+
+Keep attendance events immutable where appropriate. Corrections should be represented through auditable revisions or authorized adjustments.
+
+Protect sensitive location and identity information using appropriate access control and retention policies.
+
+## 21. MOBILE AND WEB UI REQUIREMENTS
+
+The feature must work within the existing mobile and web applications.
+
+### Labourer mobile interface
+
+Keep the interface simple:
+
+- Large Check In button.
+- Large Check Out button.
+- Current attendance status.
+- Worksite name.
+- Location permission status.
+- GPS accuracy information when relevant.
+- Verification countdown.
+- Attendance history.
+- Notifications.
+
+### Staff and admin interface
+
+Add:
+
+- Labourer Management.
+- Worksite Management.
+- Attendance Participant Assignments.
+- GPS Attendance Reports.
+- Random Verification.
+- Location Exceptions.
+- Attendance Approval Queue.
+- Labourer Attendance History.
+
+### Master admin interface
+
+Provide company-wide access and controls for:
+
+- All labourer accounts.
+- All worksites.
+- All attendance participants.
+- Secondary-admin supervisor assignments.
+- GPS configuration.
+- Verification configuration.
+- Attendance exceptions.
+- Approval assignments.
+- Audit history.
+
+Secondary admins must see only the workers and participants assigned to them.
+
+## 22. SECURITY AND PRIVACY REQUIREMENTS
+
+- Use HTTPS for all location-related operations.
+- Request location permission only when the user performs an attendance action or responds to a verification request.
+- Do not continuously track users.
+- Restrict location access by role and assignment.
+- Do not expose full Aadhaar information in APIs or frontend responses unless specifically required and authorized.
+- Encrypt sensitive data at rest and in transit.
+- Keep secrets server-side.
+- Validate all GPS inputs on the backend.
+- Do not trust browser-provided user IDs, roles, team IDs, or approval statuses.
+- Apply the existing database-level authorization strategy.
+- Implement rate limits for OTP and random verification requests.
+- Keep sensitive location and identity data out of general application logs.
+- Define appropriate retention and deletion procedures for sensitive data, subject to legal and operational requirements.
+
+## 23. REQUIRED TESTS
+
+Run tests for the following.
+
+### Account management
+
+- Create a labourer.
+- Assign a labourer to a team.
+- Assign a worksite.
+- Transfer a labourer to another team.
+- Disable a labourer account.
+- Test OTP login.
+- Test username/password login.
+- Test unauthorized account access.
+- Verify Aadhaar masking and access restrictions.
+
+### GPS attendance
+
+- Check in inside the permitted radius.
+- Check in outside the permitted radius.
+- Check in with poor GPS accuracy.
+- Retry after a location error.
+- Check out inside the radius.
+- Check out outside the radius.
+- Attempt duplicate check-in.
+- Attempt checkout without check-in.
+- Test missing location permission.
+- Test network interruption.
+- Test stale location timestamps.
+- Verify that location is not continuously collected.
+
+### Random verification
+
+- Admin requests verification.
+- Labourer receives the notification.
+- Labourer responds within 30 minutes.
+- Labourer responds outside the radius.
+- GPS accuracy is insufficient.
+- Labourer does not respond.
+- Request expires correctly.
+- Unauthorized admin attempts verification.
+- Multiple requests do not create duplicate records.
+
+### Role and supervisor assignments
+
+- Staff submits attendance to assigned admin.
+- Labourer submits attendance to assigned admin.
+- Secondary admin submits attendance to another assigned admin.
+- Master admin can review all authorized attendance.
+- No user can approve their own attendance.
+- Secondary admin cannot view unassigned participants.
+- Changing a supervisor preserves historical approval records.
+
+### Payroll and reporting
+
+- Only approved attendance contributes to weekly payments.
+- GPS attendance is not double-counted with count-based attendance.
+- Historical rates remain unchanged.
+- Payment settlement preserves attendance history.
+- Weekly and monthly reports reconcile.
+- Admin overrides are visible and auditable.
+
+### Regression testing
+
+All existing application features must continue working:
+
+- Existing staff attendance.
+- Count-based attendance.
+- Weekly and monthly reports.
+- Approval workflow.
+- Staff isolation.
+- Master-admin permissions.
+- Secondary-admin permissions.
+- Payment statuses.
+- Attachments.
+- Notifications.
+- Accounts ledger.
+- Petty cash.
+- Audit history.
+- PDF and Excel exports.
+
+## 24. IMPLEMENTATION ORDER
+
+Implement in the following sequence:
+
+Phase 1: Inspect the existing authentication and role architecture. Add the labourer role and secure account registration.
+
+Phase 2: Add worksite management and geofence configuration.
+
+Phase 3: Implement GPS check-in and check-out with server-side validation.
+
+Phase 4: Implement random 30-minute verification and persistent notifications.
+
+Phase 5: Implement attendance participation for staff and secondary admins, with supervisor assignments.
+
+Phase 6: Integrate approvals, exceptions, overrides, and audit history.
+
+Phase 7: Integrate individual attendance into team reports and weekly payment calculations without double-counting.
+
+Phase 8: Complete security, privacy, mobile, and regression testing.
+
+Do not skip database migrations, backend authorization, or tests.
+
+## 25. FINAL ACCEPTANCE CRITERIA
+
+The feature is complete only when:
+
+- Admins can create and manage individual labourer accounts.
+- Labourers can log in using either configured authentication method.
+- Labourers can check in and check out using GPS.
+- Worksite radius and GPS accuracy are validated on the backend.
+- Location is collected only during explicit attendance or verification actions.
+- Admins can request random verification with a 30-minute deadline.
+- Expired or suspicious verification requests create review flags.
+- Staff, secondary admins, and other authorized accounts can also participate in attendance without losing their original roles.
+- Attendance supervisors and approval permissions work correctly.
+- Approved attendance integrates with weekly reports and payments.
+- Existing count-based attendance remains available.
+- Duplicate counting is prevented.
+- Sensitive identity and location information is protected.
+- The feature works in the existing web and mobile applications.
+- All previous ERP features continue working.
+- All required tests pass.
+
+**Start by inspecting the current application and database. Extend the existing project incrementally. Do not replace the application, do not introduce continuous GPS tracking, do not bypass existing approval rules, and do not claim completion until the complete workflow has been tested on both web and mobile.**

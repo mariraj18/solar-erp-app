@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "694224693054",
+    "project_id": "solarerp-65080",
+    "storage_bucket": "solarerp-65080.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:694224693054:android:01454e78f2a85dd5f4ee6f",
+        "android_client_info": {
+          "package_name": "com.solardesigns.labourerp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhFmvtKojHMxdUiA8awRqz0mnORbm2E6s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
